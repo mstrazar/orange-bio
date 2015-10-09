@@ -14,6 +14,7 @@ import gc
 import sys, os, tarfile, math
 from os.path import join as p_join
 from urllib2 import URLError
+from requests.exceptions import ConnectTimeout
 
 from Orange.orng import orngServerFiles
 from Orange.orng.orngDataCaching import data_hints
@@ -142,9 +143,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.filterByNumOfInstances = False
         self.minNumOfInstances = 1
         self.filterByPValue = True
-        self.maxPValue = 0.1
+        self.maxPValue = 0.2
         self.filterByPValue_nofdr = False
-        self.maxPValue_nofdr = 0.2
+        self.maxPValue_nofdr = 0.1
         self.probFunc = 0
         self.selectionDirectAnnotation = 0
         self.selectionDisjoint = 0
@@ -321,7 +322,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.selectedTerms = []
 
         self.connect(self, SIGNAL("widgetStateChanged(QString, int, QString)"), self.onStateChanged)
-
         self.setBlocking(True)
         self._executor = ThreadExecutor()
         self._init = EnsureDownloaded(
@@ -330,8 +330,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
         )
         self._init.finished.connect(self.UpdateOrganismComboBox)
         self._executor.submit(self._init)
-        pb = OWGUI.ProgressBar(self, 100)
-        self.Load(pb=pb)
 
 
     def UpdateOrganismComboBox(self):
@@ -341,6 +339,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.annotationComboBox.clear()
             self.annotationComboBox.addItems(self.annotationCodes)
             self.annotationComboBox.setCurrentIndex(self.annotationIndex)
+        except ConnectTimeout:
+            self.error(1, "Internet connection error! Data has not been loaded.")
         finally:
             self.setBlocking(False)
 
@@ -354,12 +354,13 @@ class OWGOEnrichmentAnalysis(OWWidget):
                     self.Update()
 
     def Update(self):
+        pb = OWGUI.ProgressBar(self, 100)
+        self.Load(pb=pb)
         if self.clusterDataset:
-            pb = OWGUI.ProgressBar(self, 100)
-            self.Load(pb=pb)
             self.FilterUnknownGenes()
             graph = self.Enrichment(pb=pb)
             self.SetGraph(graph)
+
 
     def UpdateGOAndAnnotation(self, tags=[]):
         from .OWUpdateGenomicsDatabases import OWUpdateGenomicsDatabases
@@ -551,8 +552,12 @@ class OWGOEnrichmentAnalysis(OWWidget):
             for i, args in enumerate(calls):
                 orngServerFiles.localpath_download(*args, **dict(callback=pb.advance))
         except URLError:
-            self.ShowInfoConnection()
+            self.error(1, "Internet connection error, data has not been loaded.")
+            if finish:
+                pb.finish()
             return
+        else:
+            self.error(0, "")
             
         i = len(calls)
         if not self.ontology:
@@ -574,6 +579,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
             for etype in obiGO.evidenceTypesOrdered:
                 self.evidenceCheckBoxDict[etype].setEnabled(bool(count[etype]))
                 self.evidenceCheckBoxDict[etype].setText(etype+": %i annots(%i genes)" % (count[etype], len(geneSets[etype])))
+        elif org is None:
+            pb.finish()
         if finish:
             pb.finish()
             
@@ -945,16 +952,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
 
         label = QLabel(dialog)
         label.setText("Annotations:\n"+self.annotations.header.replace("!", "") if self.annotations else "Annotations not loaded!")
-        dialog.layout().addWidget(label)
-        dialog.show()
-
-
-    def ShowInfoConnection(self):
-        dialog = QDialog(self, QtCore.Qt.WindowStaysOnTopHint)
-        dialog.setModal(False)
-        dialog.setLayout(QVBoxLayout())
-        label = QLabel(dialog)
-        label.setText("Internet connection error! Data has not been loaded.")
         dialog.layout().addWidget(label)
         dialog.show()
 
