@@ -13,6 +13,7 @@ from functools import partial
 import gc
 import sys, os, tarfile, math
 from os.path import join as p_join
+from requests.exceptions import ConnectTimeout
 
 from Orange.orng import orngServerFiles
 from Orange.orng.orngDataCaching import data_hints
@@ -22,6 +23,7 @@ from Orange.OrangeWidgets.OWConcurrent import ThreadExecutor
 
 from .. import obiGene, obiGO, obiProb, obiTaxonomy
 from .utils.download import EnsureDownloaded
+from PyQt4 import QtCore
 
 NAME = "GO Browser"
 DESCRIPTION = "Enrichment analysis for Gene Ontology terms."
@@ -336,6 +338,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.annotationComboBox.clear()
             self.annotationComboBox.addItems(self.annotationCodes)
             self.annotationComboBox.setCurrentIndex(self.annotationIndex)
+        except ConnectTimeout:
+            self.ShowInfoConnection()
         finally:
             self.setBlocking(False)
 
@@ -583,7 +587,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
                         print ex
             self.annotations.genematcher = obiGene.matcher(matchers)
             self.annotations.genematcher.set_targets(self.annotations.gene_names)
-            
+
     def Enrichment(self, pb=None):
         pb = OWGUI.ProgressBar(self, 100) if pb is None else pb
         if not self.annotations.ontology:
@@ -935,6 +939,17 @@ class OWGOEnrichmentAnalysis(OWWidget):
         label.setText("Annotations:\n"+self.annotations.header.replace("!", "") if self.annotations else "Annotations not loaded!")
         dialog.layout().addWidget(label)
         dialog.show()
+
+
+    def ShowInfoConnection(self):
+        dialog = QDialog(self, QtCore.Qt.WindowStaysOnTopHint)
+        dialog.setModal(False)
+        dialog.setLayout(QVBoxLayout())
+        label = QLabel(dialog)
+        label.setText("Internet connection error! Data has not been loaded.")
+        dialog.layout().addWidget(label)
+        dialog.show()
+
         
     def sendReport(self):
         self.reportSettings("Settings", [("Organism", self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes) - 1)]),
