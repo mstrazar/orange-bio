@@ -144,7 +144,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
         self.filterByPValue = True
         self.maxPValue = 0.1
         self.filterByPValue_nofdr = False
-        self.maxPValue_nofdr = 0.1
+        self.maxPValue_nofdr = 0.2
         self.probFunc = 0
         self.selectionDirectAnnotation = 0
         self.selectionDisjoint = 0
