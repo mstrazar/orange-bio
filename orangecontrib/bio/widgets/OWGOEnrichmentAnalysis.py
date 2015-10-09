@@ -866,6 +866,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 
         self.ExampleSelection()
         self.selectionChanging = 0
+
             
     
     def UpdateAddClassButton(self):
@@ -943,7 +944,8 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.send("Unselected Examples", unselectedExamples)
 
     def ShowInfo(self):
-        dialog = QDialog(self)
+        dialog = QDialog(self, )
+        dialog.setWindowTitle("Ontology / Annotation Info")
         dialog.setModal(False)
         dialog.setLayout(QVBoxLayout())
         label = QLabel(dialog)
@@ -1068,10 +1070,9 @@ class GeneMatcherDialog(OWWidget):
              ("useAffy", "Use Affymetrix platform reference ids")]
     settingsList = [item[0] for item in items]
     def __init__(self, parent=None, defaults=[True, False, False, False], enabled=[False, True, True, True], **kwargs):
-        OWWidget.__init__(self, parent, **kwargs)
+        OWWidget.__init__(self, parent, title="Gene Matching", **kwargs)
         for item, default in zip(self.items, defaults):
             setattr(self, item[0], default)
-            
         self.loadSettings()
         for item, enable in zip(self.items, enabled):
             cb = OWGUI.checkBox(self, self, *item)
