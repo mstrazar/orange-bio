@@ -13,7 +13,7 @@ from functools import partial
 import gc
 import sys, os, tarfile, math
 from os.path import join as p_join
-from requests.exceptions import ConnectTimeout
+from urllib2 import URLError
 
 from Orange.orng import orngServerFiles
 from Orange.orng.orngDataCaching import data_hints
@@ -330,6 +330,9 @@ class OWGOEnrichmentAnalysis(OWWidget):
         )
         self._init.finished.connect(self.UpdateOrganismComboBox)
         self._executor.submit(self._init)
+        pb = OWGUI.ProgressBar(self, 100)
+        self.Load(pb=pb)
+
 
     def UpdateOrganismComboBox(self):
         try:
@@ -338,8 +341,6 @@ class OWGOEnrichmentAnalysis(OWWidget):
             self.annotationComboBox.clear()
             self.annotationComboBox.addItems(self.annotationCodes)
             self.annotationComboBox.setCurrentIndex(self.annotationIndex)
-        except ConnectTimeout:
-            self.ShowInfoConnection()
         finally:
             self.setBlocking(False)
 
@@ -351,7 +352,7 @@ class OWGOEnrichmentAnalysis(OWWidget):
                 self.SetGeneMatcher()
                 if self.clusterDataset:
                     self.Update()
-                
+
     def Update(self):
         if self.clusterDataset:
             pb = OWGUI.ProgressBar(self, 100)
@@ -529,28 +530,35 @@ class OWGOEnrichmentAnalysis(OWWidget):
         if not tax_files:
             calls.append(("Taxonomy", "ncbi_taxnomy.tar.gz"))
             count += 1
-        org = self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
-        if org != self.loadedAnnotationCode:
-            count += 1
-            if self.annotationFiles[org] not in go_files:
-                calls.append(("GO", self.annotationFiles[org]))
+
+        org = None
+        if len(self.annotationCodes):
+            org = self.annotationCodes[min(self.annotationIndex, len(self.annotationCodes)-1)]
+            if org != self.loadedAnnotationCode:
                 count += 1
-                
+                if self.annotationFiles[org] not in go_files:
+                    calls.append(("GO", self.annotationFiles[org]))
+                    count += 1
+
         if "gene_ontology_edit.obo.tar.gz" not in go_files:
             calls.append(("GO", "gene_ontology_edit.obo.tar.gz"))
             count += 1
         if not self.ontology:
             count += 1
         pb.iter += count*100
-        
-        for i, args in enumerate(calls):
-            orngServerFiles.localpath_download(*args, **dict(callback=pb.advance))
+
+        try:
+            for i, args in enumerate(calls):
+                orngServerFiles.localpath_download(*args, **dict(callback=pb.advance))
+        except URLError:
+            self.ShowInfoConnection()
+            return
             
         i = len(calls)
         if not self.ontology:
             self.ontology = obiGO.Ontology(progress_callback=lambda value: pb.advance())
             i+=1
-        if org != self.loadedAnnotationCode:
+        if org and org != self.loadedAnnotationCode:
             self.annotations = None
             gc.collect() # Force run garbage collection.
             code = self.annotationFiles[org].split(".")[-3]
